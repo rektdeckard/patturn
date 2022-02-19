@@ -1,0 +1,15 @@
+{
+  "name": "patturn",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "watch": "jest --watchAll"
+  },
+  "devDependencies": {
+    "jest": "^27.5.1",
+    "typescript": "^4.5.5"
+  }
+}
