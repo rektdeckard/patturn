@@ -1,8 +1,29 @@
 {
   "name": "patturn",
   "version": "0.1.0",
+  "description": "Functional match expressions for JS",
+  "author": "rektdeckard",
+  "repository": "rektdeckard/patturn",
+  "keywords": [
+    "js",
+    "pattern-matching",
+    "match-expression",
+    "fp"
+  ],
   "main": "dist/index.js",
+  "sideEffects": false,
+  "typings": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
   "license": "MIT",
+  "prettier": {
+    "printWidth": 80,
+    "semi": true,
+    "singleQuote": false,
+    "trailingComma": "es5"
+  },
   "scripts": {
     "build": "tsc",
     "test": "jest",

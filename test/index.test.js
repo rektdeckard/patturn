@@ -33,6 +33,32 @@ describe("match()", () => {
     expect(y).toBe("fizz");
   });
 
+  it("matches from a guardlist", () => {
+    const flavor = "strawberry";
+    const preference = match(
+      flavor,
+      [
+        [["chocolate", "vanilla"], "obviously good"],
+        ["pistachio", "lowkey favorite"],
+        [["mint chip", "strawberry"], "kinda okay"],
+        ["rocky road", "too much going on"],
+      ],
+      "no opinion"
+    );
+    expect(preference).toBe("kinda okay");
+
+    const number = 420;
+    const goodness = match(
+      number,
+      [
+        [[0, 1, 2, 7], "meh"],
+        [[69, 420], "top-tier"],
+      ],
+      "no opinion"
+    );
+    expect(goodness).toBe("top-tier");
+  });
+
   it("falls through on no match", () => {
     const me = "toby";
     const res = match(
