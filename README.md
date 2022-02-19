@@ -1,4 +1,4 @@
-<img src="https://github.com/rektdeckard/patturn/blob/main/meta/patturn.png" width="128" align="center" />
+<img src="https://github.com/rektdeckard/patturn/blob/main/meta/patturn.png" width="400" align="center" />
 
 # patturn
 
