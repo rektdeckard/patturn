@@ -1,4 +1,4 @@
-const { match, when } = require("../dist");
+const { match, when } = require("../dist/index.umd");
 
 describe("match()", () => {
   it("matches by value", () => {

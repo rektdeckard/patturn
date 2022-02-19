@@ -11,12 +11,14 @@
     "fp"
   ],
   "main": "dist/index.js",
-  "sideEffects": false,
+  "module": "dist/index.min.mjs",
+  "unpkg": "dist/index.umd.min.js",
+  "types": "dist/index.d.ts",
   "typings": "dist/index.d.ts",
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
+  "sideEffects": false,
   "license": "MIT",
   "prettier": {
     "printWidth": 80,
@@ -25,12 +27,20 @@
     "trailingComma": "es5"
   },
   "scripts": {
-    "build": "tsc",
+    "clean": "rimraf dist",
+    "build": "npm run clean && tsc && npm run bundle:esm && npm run bundle:esm:min && npm run bundle:umd && npm run bundle:umd:min",
+    "bundle:esm": "rollup dist/index.js --file dist/index.mjs --format esm",
+    "bundle:esm:min": "terser --ecma 6 --compress --mangle --module -o dist/index.min.mjs -- dist/index.mjs",
+    "bundle:umd": "rollup dist/index.js --file dist/index.umd.js --format umd --name sayHello",
+    "bundle:umd:min": "terser --ecma 6 --compress --mangle -o dist/index.umd.min.js -- dist/index.umd.js",
     "test": "jest",
     "watch": "jest --watchAll"
   },
   "devDependencies": {
     "jest": "^27.5.1",
+    "rimraf": "^3.0.2",
+    "rollup": "^2.67.3",
+    "terser": "^5.10.0",
     "typescript": "^4.5.5"
   }
 }
