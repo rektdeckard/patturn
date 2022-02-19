@@ -67,6 +67,7 @@ export function when<In>(
         if (g === input) {
           op(input);
           if (lazy) return;
+          break; // prevent calling op multiple times
         }
       }
     }
