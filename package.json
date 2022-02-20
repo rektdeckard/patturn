@@ -1,6 +1,6 @@
 {
   "name": "patturn",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Functional match expressions for JS",
   "author": "rektdeckard",
   "repository": "rektdeckard/patturn",
