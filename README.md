@@ -7,6 +7,7 @@
 The missing `match` expression for JavaScript. Use functional pattern matching constructs familiar from languages like Rust to sidestep the limitations of `switch` statements, reduce messy ternary expressions and if/else chains, and assign variables based on arbitrarily complex conditions.
 
 [![NPM](https://img.shields.io/npm/v/patturn.svg?style=flat-square)](https://www.npmjs.com/package/patturn)
+![npm bundle size](https://img.shields.io/bundlephobia/minzip/patturn?style=flat-square)
 
 [![GitHub stars](https://img.shields.io/github/stars/rektdeckard/patturn?style=flat-square&label=Star)](https://github.com/rektdeckard/patturn)
 [![GitHub forks](https://img.shields.io/github/forks/rektdeckard/patturn?style=flat-square&label=Fork)](https://github.com/rektdeckard/patturn/fork)
