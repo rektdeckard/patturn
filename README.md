@@ -1,4 +1,6 @@
-<img src="https://github.com/rektdeckard/patturn/blob/main/meta/patturn.png" width="400" align="center" />
+<p align="center">
+  <img src="https://github.com/rektdeckard/patturn/blob/main/meta/patturn_hero.png" width="400" align="center" />
+</p>
 
 # patturn
 
@@ -25,13 +27,14 @@ npm install --save patturn
 
 ## Match expressions
 
-The `match()` function behaves like a superpowered `switch` statement that returns a value from the matched branch. It accepts a value to match against, an array of matchers, and an optional default (fallthrough) return value:
+The `match()` function behaves like a superpowered `switch` statement that returns a value from the matched branch. It accepts a value to match against, an array of matchers, and an optional default return value. 
 
 ```ts
-const answer = 42;
+import { match } from "patturn";
+const ANSWER = 42;
 
-match(
-  answer,
+const result = match(
+  ANSWER,
   [
     [0, "zilch"],
     [3, "the magic number"],
@@ -39,12 +42,18 @@ match(
     [420, "nothing to see here, officer"],
   ],
   "no match"
-); // returns "the meaning of life"
+);
+// result: "the meaning of life"
 ```
 
-Each matcher consists of a _guard_ and a _return_. Guards check if a value matches a condition, and returns specify the value to return from the match. Each can be a value, expression, function called with the value, or any combination thereof:
+The _return_ types may be heterogeneous, and when using TypeScript can be inferred, or constrained as needed.
+
+### Guards and Returns
+
+Each matcher consists of a _guard_ and a _return_. Guards check if a value matches a condition, and returns specify the value to return from the match. Each can be a value, expression, array of values, function called with the value, or any combination thereof:
 
 ```ts
+import { match } from "patturn";
 const name = "benedict";
 
 match(name, [
@@ -56,9 +65,34 @@ match(name, [
 
 > Note: _guards_ use strict equality, or the boolean return value if a function.
 
-The _return_ types may be heterogeneous, and when using TypeScript can be inferred, or constrained as needed:
+### Guard Lists
+
+To match multiple values in a single match branch, simply pass in an array of values as the guard. This is the equivalent of the fallthrough behavior in `switch`, and any matching value will immediately break with the associated return:
 
 ```ts
+import { match } from "patturn";
+const flavor = "strawberry";
+
+const preference = match(
+  flavor,
+  [
+    [["chocolate", "vanilla"], "obviously good"],
+    [["mint chip", "strawberry"], "kinda okay"], // matches second guard case
+    ["pistachio", "lowkey favorite"],
+    ["rocky road", "too much going on"],
+  ],
+  "no opinion"
+);
+// preference: "kinda okay"
+```
+
+### Order matters
+
+Ordering of matchers is important -- the first guard to pass is the one used. In the example below, both the third and fourth guards would pass, but the fourth is never run:
+
+```ts
+import { match } from "patturn";
+
 type User = { name: string; id: number };
 const me: User = { name: "rekt", id: 32 };
 
@@ -70,13 +104,24 @@ match<User, boolean | null>(me, [
 ]); // returns `true`
 ```
 
-> Note: ordering of matchers is important -- the first guard to pass is the one used. In the above example, both the third and fourth guards would pass, but the fourth is never run.
+### Match Signature
+
+```ts
+function match<In, Out = In>(input: In, matchers: Array<MatchBranch<In, Out>>, defaultValue?: Out): Out | undefined;
+
+type MatchBranch<In, Out> = [Guard<In>, Return<In, Out>];
+type Guard<In> = In | In[] | ((input: In) => boolean);
+type Return<In, Out> = Out | ((input: In) => Out);
+```
+
+---
 
 ## When statements
 
-The `when()` function behaves much like `match()`, but doesn't return a value. It has the added benefit of running lazily, stopping after the first match, or greedily and running through every match. It's also a lot like a `switch`, useful for running side-effects based on complex conditions.
+The `when()` function behaves much like `match()`, but doesn't return a value. It has the added option of running lazily, stopping after the first match, or greedily and running through every match. It's also a lot like a `switch`, useful for running side-effects based on complex conditions.
 
 ```ts
+import { when } from "patturn";
 const album = { artist: "Radiohead", title: "OK Computer", year: 1997 };
 
 when(
@@ -93,6 +138,15 @@ when(
 );
 // - logs "playing 90's music..."
 // - blasts volume
+```
+
+### When Signature
+
+```ts
+function when<In>(input: In, matchers: Array<WhenBranch<In>>, lazy?: boolean): void;
+
+type WhenBranch<In> = [Guard<In>, (input: In) => void];
+type Guard<In> = In | In[] | ((input: In) => boolean);
 ```
 
 ## License
