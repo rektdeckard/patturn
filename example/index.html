@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body {
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <label
+      ><span>Input: </span>
+      <input id="i" type="text" />
+    </label>
+    <label
+      ><span>Custom match:</span>
+      <input id="custom" type="text" />
+    </label>
+    <pre id="log"></pre>
+    <script type="module">
+      import { match, when } from "https://unpkg.com/patturn?module";
+
+      const input = document.getElementById("i");
+      const log = document.getElementById("log");
+
+      input.addEventListener("input", (e) => {
+        const value = e.target.value || "";
+        if (!value) return;
+        const custom = document.getElementById("custom")?.value;
+
+        const res = match(
+          value,
+          [
+            [["Tobias", "Toby", "Tobes"], "IT ME!"],
+            [(v) => v.toLowerCase().includes("tob"), "probably me"],
+            [(v) => v.length > 10, (v) => `${v.length} is too long for a name`],
+            ["Helena", "BOO THANG"],
+            ["Hels", "BOO THANG"],
+            [(v) => v.toLowerCase().includes("hel"), "probably my boo"],
+            [custom, "CUSTOM"],
+          ],
+          "nobody"
+        );
+
+        when(value, [
+          [(v) => v.toLowerCase() === "error", () => alert("UH OH!")],
+          [["once", "once"], () => console.log("only once?")],
+          [
+            (v) => v.includes("bub"),
+            () => {
+              document.body.style.color = `#${Math.floor(
+                Math.random() * 16777215
+              )
+                .toString(16)
+                .padStart(6, "0")}`;
+              document.body.style.backgroundColor = `#${Math.floor(
+                Math.random() * 16777215
+              )
+                .toString(16)
+                .padStart(6, "0")}`;
+            },
+          ],
+        ]);
+
+        const logMsg = document.createElement("p");
+        logMsg.innerText = `${e.target.value.padEnd(12, " ")}| ${res}`;
+        log.prepend(logMsg);
+      });
+    </script>
+  </body>
+</html>
