@@ -1,4 +1,36 @@
-const { match, when } = require("../dist/index.umd");
+const { match, when, matchAsync, whenAsync } = require("../dist/index.umd");
+
+async function isEvenAsync(num) {
+  return new Promise((resolve) => setTimeout(() => resolve(num % 2 === 0), 50));
+}
+
+async function isOddAsync(num) {
+  return new Promise((resolve) => setTimeout(() => resolve(num % 2 !== 0), 50));
+}
+
+async function doubleAsync(num) {
+  return new Promise((resolve) => setTimeout(() => resolve(num * 2), 50));
+}
+
+async function delayUppercaseAsync(str) {
+  return new Promise((resolve) =>
+    setTimeout(() => resolve(str.toUpperCase()), 50)
+  );
+}
+
+async function delayIdentityAsync(q) {
+  return new Promise((resolve) => setTimeout(() => resolve(q), 50));
+}
+
+async function beautifyAsync(str) {
+  return new Promise((resolve) =>
+    setTimeout(() => resolve(`**~~** ${str} **~~**`), 50)
+  );
+}
+
+async function stringMatchesAsync(str, test) {
+  return new Promise((resolve) => setTimeout(() => resolve(str === test), 100));
+}
 
 describe("match()", () => {
   it("matches by value", () => {
@@ -148,6 +180,97 @@ describe("match()", () => {
   });
 });
 
+describe("matchAsync()", () => {
+  it("matches an async guard", async () => {
+    await expect(
+      matchAsync(33, [
+        [isEvenAsync, "even"],
+        [isOddAsync, "odd"],
+      ])
+    ).resolves.toBe("odd");
+  });
+
+  it("maps asynchronously", async () => {
+    await expect(
+      matchAsync(33, [
+        [11, 0],
+        [22, 1],
+        [33, doubleAsync],
+      ])
+    ).resolves.toBe(66);
+  });
+
+  it("matches and maps asynchronously", async () => {
+    await expect(
+      matchAsync("PRECIOUS", [
+        [
+          async (s) => (await delayUppercaseAsync("fabulous")) === s,
+          async () => beautifyAsync("FAB"),
+        ],
+        [
+          async (s) => stringMatchesAsync(s, "beautiful"),
+          async () => beautifyAsync("BEAU"),
+        ],
+        [
+          async (s) => (await delayUppercaseAsync("precious")) === s,
+          beautifyAsync,
+        ],
+      ])
+    ).resolves.toBe("**~~** PRECIOUS **~~**");
+  });
+
+  it("handles pending promises", async () => {
+    await expect(
+      matchAsync("PRECIOUS", [
+        [
+          delayIdentityAsync(false),
+          new Promise((resolve) => setTimeout(() => resolve("errr, no"), 50)),
+        ],
+        [delayIdentityAsync(false), beautifyAsync("BEAU")],
+        [delayIdentityAsync(true), (x) => beautifyAsync(x)],
+      ])
+    ).resolves.toBe("**~~** PRECIOUS **~~**");
+  });
+
+  it("stops at the first match", async () => {
+    await expect(
+      matchAsync("PRECIOUS", [
+        [delayIdentityAsync(true), beautifyAsync],
+        [
+          async (x) => x === "PRECIOUS",
+          async () => {
+            throw new Error("should not run past first match");
+          },
+        ],
+        [
+          async () => true,
+          async () => {
+            throw new Error("should not run past first match");
+          },
+        ],
+      ])
+    ).resolves.toBe("**~~** PRECIOUS **~~**");
+  });
+
+  it("falls through on no match", async () => {
+    await expect(
+      matchAsync(
+        101.5,
+        [
+          [async () => false, 0],
+          [async () => false, 91291291],
+          [async () => false, 77],
+        ],
+        new Promise((resolve) => setTimeout(() => resolve(43.5), 50))
+      )
+    ).resolves.toBe(43.5);
+  });
+
+  it("falls through on no matchers", async () => {
+    await expect(matchAsync(101.5, [], 43.5)).resolves.toBe(43.5);
+  });
+});
+
 describe("when()", () => {
   it("matches by value", () => {
     when(69, [
@@ -223,7 +346,7 @@ describe("when()", () => {
 
   it("falls through on no matchers", () => {
     when(0, []);
-    expect(true);
+    expect(true).toBeTruthy();
   });
 
   it("stops at the first match in lazy mode", () => {
@@ -344,5 +467,229 @@ describe("when()", () => {
       ],
     ]);
     expect(total).toBe(42 * 9);
+  });
+
+  it("handles early returns with missing ret", () => {
+    let total = 0;
+    when(
+      12,
+      [
+        [12],
+        [12, () => (total += 1)],
+        [
+          12,
+          () => {
+            throw new Error("should not run in lazy mode");
+          },
+        ],
+      ],
+      true
+    );
+    expect(total).toBe(0);
+
+    when(
+      12,
+      [
+        [12],
+        [12, () => (total += 1)],
+        [
+          12,
+          () => {
+            throw new Error("should not run in lazy mode");
+          },
+        ],
+      ],
+      true
+    );
+    expect(total).toBe(0);
+  });
+});
+
+describe("whenAsync()", () => {
+  it("matches an async guard", async () => {
+    let even;
+    await whenAsync(33, [
+      [
+        isEvenAsync,
+        () => {
+          throw new Error("incorrect match");
+        },
+      ],
+      [isOddAsync, () => (even = false)],
+    ]);
+    expect(even).toBe(false);
+  });
+
+  it("handles pending promises", async () => {
+    let val = "foo";
+    await whenAsync("PRECIOUS", [
+      [
+        delayIdentityAsync(false),
+        () => {
+          throw new Error("incorrect match");
+        },
+      ],
+      [
+        delayIdentityAsync(false),
+        () => {
+          throw new Error("incorrect match");
+        },
+      ],
+      [
+        delayIdentityAsync(true),
+        async () => {
+          val = "bar";
+        },
+      ],
+    ]);
+    expect(val).toBe("bar");
+  });
+
+  it("stops at the first match in lazy mode", async () => {
+    let count = 0;
+
+    await whenAsync(
+      "PRECIOUS",
+      [
+        [delayIdentityAsync(true), async () => (count += 1)],
+        [
+          async (x) => x === "PRECIOUS",
+          async () => {
+            throw new Error("should not run past first match");
+          },
+        ],
+        [
+          async () => true,
+          async () => {
+            throw new Error("should not run past first match");
+          },
+        ],
+      ],
+      true
+    );
+    expect(count).toBe(1);
+  });
+
+  it("executes all matches in greedy mode", async () => {
+    let count = 0;
+    await whenAsync(
+      { fing: 32, doo: "yes" },
+      [
+        [
+          async (o) => o.fing > 30,
+          async () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                count += 1;
+                resolve();
+              }, 50)
+            ),
+        ],
+        [
+          async (o) => o.doo.includes("y"),
+          async () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                count += 1;
+                resolve();
+              }, 50)
+            ),
+        ],
+        [
+          async () => false,
+          async () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                count += 1000;
+                resolve();
+              }, 50)
+            ),
+        ],
+        [
+          async (o) => o.doo.length == 3,
+          async () =>
+            new Promise((resolve) =>
+              setTimeout(() => {
+                count += 1;
+                resolve();
+              }, 50)
+            ),
+        ],
+      ],
+      false
+    );
+    expect(count).toBe(3);
+  });
+
+  it("falls through on no match", async () => {
+    await whenAsync(89, [
+      [
+        0,
+        () => {
+          throw new Error("incorrect match");
+        },
+      ],
+      [
+        1,
+        () => {
+          throw new Error("incorrect match");
+        },
+      ],
+      [
+        2,
+        () => {
+          throw new Error("incorrect match");
+        },
+      ],
+      [
+        3,
+        () => {
+          throw new Error("incorrect match");
+        },
+      ],
+    ]);
+    expect(true).toBeTruthy();
+  });
+
+  it("falls through on no matchers", async () => {
+    await whenAsync(0, []);
+    expect(true).toBeTruthy();
+  });
+
+  it("handles early returns with missing ret", async () => {
+    await whenAsync(
+      "earlyRet",
+      [
+        [
+          delayIdentityAsync(false),
+          () => {
+            throw new Error("incorrect match");
+          },
+        ],
+        [
+          delayIdentityAsync(false),
+          () => {
+            throw new Error("incorrect match");
+          },
+        ],
+        [delayIdentityAsync(true)],
+      ],
+      true
+    );
+    expect.assertions(0);
+
+    await whenAsync(
+      "earlyRet",
+      [
+        [delayIdentityAsync(true)],
+        [
+          (delayIdentityAsync(true),
+          () => {
+            throw new Error("should not run in lazy more");
+          }),
+        ],
+      ],
+      true
+    );
   });
 });
