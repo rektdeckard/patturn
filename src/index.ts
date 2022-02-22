@@ -1,5 +1,8 @@
 export type Guard<In> = In | In[] | ((input: In) => boolean);
-export type GuardAsync<In> = Guard<In> | ((input: In) => Promise<boolean>);
+export type GuardAsync<In> =
+  | Guard<In>
+  | Promise<boolean>
+  | ((input: In) => Promise<boolean>);
 export type Return<In, Out> = Out | ((input: In) => Out);
 export type ReturnAsync<In, Out> =
   | Return<In, Out>
@@ -30,13 +33,14 @@ export function match<In, Out = In>(
       }
     }
 
-    if (typeof guard === "function") {
-      if ((guard as (input: In) => boolean)(input)) {
-        if (isReturnFunction(ret)) {
-          return ret(input);
-        } else {
-          return ret;
-        }
+    if (
+      typeof guard === "function" &&
+      (guard as (input: In) => boolean)(input)
+    ) {
+      if (isReturnFunction(ret)) {
+        return ret(input);
+      } else {
+        return ret;
       }
     }
 
@@ -70,23 +74,22 @@ export async function matchAsync<In, Out = In>(
       }
     }
 
-    if (typeof guard === "function") {
-      if (await (guard as (input: In) => Promise<boolean>)(input)) {
-        if (isReturnFunction(ret)) {
-          return ret(input);
-        } else {
-          return ret;
-        }
+    if (
+      typeof guard === "function" &&
+      (await (guard as (input: In) => Promise<boolean>)(input))
+    ) {
+      if (isReturnFunction(ret)) {
+        return ret(input);
+      } else {
+        return ret;
       }
     }
 
-    if (guard instanceof Promise) {
-      if (await guard) {
-        if (isReturnFunction(ret)) {
-          return ret(input);
-        } else {
-          return ret;
-        }
+    if (guard instanceof Promise && (await guard)) {
+      if (isReturnFunction(ret)) {
+        return ret(input);
+      } else {
+        return ret;
       }
     }
 
@@ -117,11 +120,12 @@ export function when<In>(
       if (lazy) return;
     }
 
-    if (typeof guard === "function") {
-      if ((guard as (input: In) => boolean)(input)) {
-        op?.(input);
-        if (lazy) return;
-      }
+    if (
+      typeof guard === "function" &&
+      (guard as (input: In) => boolean)(input)
+    ) {
+      op?.(input);
+      if (lazy) return;
     }
 
     if (Array.isArray(guard)) {
@@ -147,18 +151,17 @@ export async function whenAsync<In>(
       if (lazy) return;
     }
 
-    if (typeof guard === "function") {
-      if (await (guard as (input: In) => boolean | Promise<boolean>)(input)) {
-        await (op instanceof Promise ? op : op?.(input));
-        if (lazy) return;
-      }
+    if (
+      typeof guard === "function" &&
+      (await (guard as (input: In) => boolean | Promise<boolean>)(input))
+    ) {
+      await (op instanceof Promise ? op : op?.(input));
+      if (lazy) return;
     }
 
-    if (guard instanceof Promise) {
-      if (await guard) {
-        await (op instanceof Promise ? op : op?.(input));
-        if (lazy) return;
-      }
+    if (guard instanceof Promise && (await guard)) {
+      await (op instanceof Promise ? op : op?.(input));
+      if (lazy) return;
     }
 
     if (Array.isArray(guard)) {
