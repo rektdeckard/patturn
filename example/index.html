@@ -18,16 +18,19 @@
     </label>
     <pre id="log"></pre>
     <script type="module">
-      import { match, when } from "https://unpkg.com/patturn?module";
+      import { match, when, whenAsync } from "https://unpkg.com/patturn?module";
 
       const input = document.getElementById("i");
       const log = document.getElementById("log");
 
       input.addEventListener("input", (e) => {
+        console.time("all");
+
         const value = e.target.value || "";
         if (!value) return;
         const custom = document.getElementById("custom")?.value;
 
+        console.time("match");
         const res = match(
           value,
           [
@@ -41,10 +44,12 @@
           ],
           "nobody"
         );
+        console.timeEnd("match");
 
+        console.time("when");
         when(value, [
           [(v) => v.toLowerCase() === "error", () => alert("UH OH!")],
-          [["once", "once"], () => console.log("only once?")],
+          [["once", "nonce"], (n) => console.log(`only ${n}?`)],
           [
             (v) => v.includes("bub"),
             () => {
@@ -61,10 +66,63 @@
             },
           ],
         ]);
+        console.timeEnd("when");
+
+        console.time("nestedWhen");
+        when(value, [
+          [
+            (v) => v.startsWith("x"),
+            (v) =>
+              when(v, [
+                [
+                  (v) => v.startsWith("xxx"),
+                  (str) =>
+                    when(str, [
+                      ["xxxu"],
+                      [
+                        (str) => str.length > 5,
+                        (str) => {
+                          const [, , , ...rest] = str;
+                          console.log(`rest is: ${rest.join("")}`);
+                        },
+                      ],
+                      ["xxxx", console.warn],
+                      ["xxxa", alert],
+                    ]),
+                ],
+              ]),
+          ],
+        ]);
+        console.timeEnd("nestedWhen");
+
+        console.time("whenAsync");
+        whenAsync(
+          value,
+          [
+            [
+              async (v) => {
+                const n = Number(v);
+                if (!Number.isNaN(n) && Number.isInteger(n)) {
+                  return true;
+                } else {
+                  return false;
+                }
+              },
+              (n) =>
+                setTimeout(() => {
+                  console.log(`waited ${n} millis`);
+                }, n),
+            ],
+          ],
+          true
+        );
+        console.timeEnd("whenAsync");
 
         const logMsg = document.createElement("p");
         logMsg.innerText = `${e.target.value.padEnd(12, " ")}| ${res}`;
         log.prepend(logMsg);
+
+        console.timeEnd("all");
       });
     </script>
   </body>
