@@ -1,23 +1,10 @@
-export type Guard<In> = In | In[] | ((input: In) => boolean);
-export type GuardAsync<In> =
-  | Guard<In>
-  | Promise<boolean>
-  | ((input: In) => Promise<boolean>);
-export type Return<In, Out> = Out | ((input: In) => Out);
-export type ReturnAsync<In, Out> =
-  | Return<In, Out>
-  | ((input: In) => Promise<Out>);
-
-export type MatchBranch<In, Out> = [Guard<In>, Return<In, Out>];
-export type MatchBranchAsync<In, Out> = [GuardAsync<In>, ReturnAsync<In, Out>];
-export type WhenBranch<In> = [
-  Guard<In>,
-  ((input: In) => void) | null | undefined
-];
-export type WhenBranchAsync<In> = [
-  GuardAsync<In>,
-  ((input: In) => void | Promise<void>) | null | undefined
-];
+import {
+  MatchBranch,
+  MatchBranchAsync,
+  WhenBranch,
+  WhenBranchAsync,
+} from "./types";
+import { isFunction } from "./utils";
 
 export function match<In, Out = In>(
   input: In,
@@ -26,7 +13,7 @@ export function match<In, Out = In>(
 ): Out | undefined {
   for (const [guard, ret] of matchers) {
     if (guard === input) {
-      if (isReturnFunction(ret)) {
+      if (isFunction<In, Out>(ret)) {
         return ret(input);
       } else {
         return ret;
@@ -37,7 +24,7 @@ export function match<In, Out = In>(
       typeof guard === "function" &&
       (guard as (input: In) => boolean)(input)
     ) {
-      if (isReturnFunction(ret)) {
+      if (isFunction<In, Out>(ret)) {
         return ret(input);
       } else {
         return ret;
@@ -47,7 +34,7 @@ export function match<In, Out = In>(
     if (Array.isArray(guard)) {
       for (const g of guard) {
         if (g === input) {
-          if (isReturnFunction(ret)) {
+          if (isFunction<In, Out>(ret)) {
             return ret(input);
           } else {
             return ret;
@@ -63,14 +50,14 @@ export function match<In, Out = In>(
 export async function matchAsync<In, Out = In>(
   input: In,
   matchers: Array<MatchBranchAsync<In, Out>>,
-  defaultValue?: Out
+  defaultValue?: Out | Promise<Out>
 ): Promise<Out | undefined> {
   for (const [guard, ret] of matchers) {
     if (guard === input) {
-      if (isReturnFunction(ret)) {
+      if (isFunction<In, Out>(ret)) {
         return ret(input);
       } else {
-        return ret;
+        return ret as Out | Promise<Out>;
       }
     }
 
@@ -78,28 +65,28 @@ export async function matchAsync<In, Out = In>(
       typeof guard === "function" &&
       (await (guard as (input: In) => Promise<boolean>)(input))
     ) {
-      if (isReturnFunction(ret)) {
+      if (isFunction<In, Out>(ret)) {
         return ret(input);
       } else {
-        return ret;
+        return ret as Out | Promise<Out>;
       }
     }
 
     if (guard instanceof Promise && (await guard)) {
-      if (isReturnFunction(ret)) {
+      if (isFunction<In, Out>(ret)) {
         return ret(input);
       } else {
-        return ret;
+        return ret as Out | Promise<Out>;
       }
     }
 
     if (Array.isArray(guard)) {
       for (const g of guard) {
         if (g === input) {
-          if (isReturnFunction(ret)) {
+          if (isFunction<In, Out>(ret)) {
             return ret(input);
           } else {
-            return ret;
+            return ret as Out | Promise<Out>;
           }
         }
       }
@@ -174,10 +161,4 @@ export async function whenAsync<In>(
       }
     }
   }
-}
-
-function isReturnFunction<In, Out>(
-  ret: Return<In, Out>
-): ret is Extract<Return<In, Out>, Function> {
-  return typeof ret === "function";
 }

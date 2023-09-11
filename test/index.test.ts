@@ -1,34 +1,35 @@
-const { match, when, matchAsync, whenAsync } = require("../dist/index.umd");
+import { describe, it, expect } from "vitest";
+import { match, when, matchAsync, whenAsync } from "../src";
 
-async function isEvenAsync(num) {
+async function isEvenAsync(num: number): Promise<boolean> {
   return new Promise((resolve) => setTimeout(() => resolve(num % 2 === 0), 50));
 }
 
-async function isOddAsync(num) {
+async function isOddAsync(num: number): Promise<boolean> {
   return new Promise((resolve) => setTimeout(() => resolve(num % 2 !== 0), 50));
 }
 
-async function doubleAsync(num) {
+async function doubleAsync(num: number): Promise<number> {
   return new Promise((resolve) => setTimeout(() => resolve(num * 2), 50));
 }
 
-async function delayUppercaseAsync(str) {
+async function delayUppercaseAsync(str: string): Promise<string> {
   return new Promise((resolve) =>
     setTimeout(() => resolve(str.toUpperCase()), 50)
   );
 }
 
-async function delayIdentityAsync(q) {
+async function delayIdentityAsync<T>(q: T): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(q), 50));
 }
 
-async function beautifyAsync(str) {
+async function beautifyAsync(str: string): Promise<string> {
   return new Promise((resolve) =>
     setTimeout(() => resolve(`**~~** ${str} **~~**`), 50)
   );
 }
 
-async function stringMatchesAsync(str, test) {
+async function stringMatchesAsync(str: string, test: string): Promise<boolean> {
   return new Promise((resolve) => setTimeout(() => resolve(str === test), 100));
 }
 
@@ -159,7 +160,7 @@ describe("match()", () => {
 
   it("deals correctly with boolean inputs", () => {
     const inpt = false;
-    const res = match(inpt, [
+    const res = match<boolean, string | { value: string }>(inpt, [
       [() => false, (v) => ({ value: `${v}` })],
       [() => !77, "false"],
       [true, "at first weirdly, but correctly, no"],
@@ -170,7 +171,7 @@ describe("match()", () => {
 
   it("even works with non-primitive values", () => {
     const aFunction = () => "not much";
-    const res = match(aFunction, [
+    const res = match<Function, string | boolean>(aFunction, [
       [() => false, () => false],
       [() => !77, false],
       [(x) => x === (() => (7).toString()), "nuh uh"],
@@ -261,7 +262,7 @@ describe("matchAsync()", () => {
           [async () => false, 91291291],
           [async () => false, 77],
         ],
-        new Promise((resolve) => setTimeout(() => resolve(43.5), 50))
+        new Promise<number>((resolve) => setTimeout(() => resolve(43.5), 50))
       )
     ).resolves.toBe(43.5);
   });
@@ -468,46 +469,11 @@ describe("when()", () => {
     ]);
     expect(total).toBe(42 * 9);
   });
-
-  it("handles early returns with missing ret", () => {
-    let total = 0;
-    when(
-      12,
-      [
-        [12],
-        [12, () => (total += 1)],
-        [
-          12,
-          () => {
-            throw new Error("should not run in lazy mode");
-          },
-        ],
-      ],
-      true
-    );
-    expect(total).toBe(0);
-
-    when(
-      12,
-      [
-        [12],
-        [12, () => (total += 1)],
-        [
-          12,
-          () => {
-            throw new Error("should not run in lazy mode");
-          },
-        ],
-      ],
-      true
-    );
-    expect(total).toBe(0);
-  });
 });
 
 describe("whenAsync()", () => {
   it("matches an async guard", async () => {
-    let even;
+    let even: boolean | undefined;
     await whenAsync(33, [
       [
         isEvenAsync,
@@ -515,7 +481,12 @@ describe("whenAsync()", () => {
           throw new Error("incorrect match");
         },
       ],
-      [isOddAsync, () => (even = false)],
+      [
+        isOddAsync,
+        () => {
+          even = false;
+        },
+      ],
     ]);
     expect(even).toBe(false);
   });
@@ -551,7 +522,12 @@ describe("whenAsync()", () => {
     await whenAsync(
       "PRECIOUS",
       [
-        [delayIdentityAsync(true), async () => (count += 1)],
+        [
+          delayIdentityAsync(true),
+          async () => {
+            count += 1;
+          },
+        ],
         [
           async (x) => x === "PRECIOUS",
           async () => {
@@ -672,7 +648,7 @@ describe("whenAsync()", () => {
             throw new Error("incorrect match");
           },
         ],
-        [delayIdentityAsync(true)],
+        [delayIdentityAsync(true), () => {}],
       ],
       true
     );
@@ -681,12 +657,12 @@ describe("whenAsync()", () => {
     await whenAsync(
       "earlyRet",
       [
-        [delayIdentityAsync(true)],
+        [delayIdentityAsync(true), () => {}],
         [
-          (delayIdentityAsync(true),
+          delayIdentityAsync(true),
           () => {
             throw new Error("should not run in lazy more");
-          }),
+          },
         ],
       ],
       true

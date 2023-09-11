@@ -1,8 +1,12 @@
 {
   "name": "patturn",
-  "version": "0.1.2",
+  "version": "1.0.0",
   "description": "Functional match expressions for JS",
-  "author": "rektdeckard",
+  "author": {
+    "name": "Tobias Fried",
+    "email": "friedtm@gmail.com",
+    "url": "https://tobiasfried.com"
+  },
   "repository": "rektdeckard/patturn",
   "keywords": [
     "js",
@@ -10,9 +14,14 @@
     "match-expression",
     "fp"
   ],
-  "main": "dist/index.js",
-  "module": "dist/index.min.mjs",
-  "unpkg": "dist/index.umd.min.js",
+  "main": "./dist/index.umd.js",
+  "module": "./dist/index.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.umd.js"
+    }
+  },
   "types": "dist/index.d.ts",
   "typings": "dist/index.d.ts",
   "files": [
@@ -27,20 +36,17 @@
     "trailingComma": "es5"
   },
   "scripts": {
-    "clean": "rimraf dist",
-    "build": "npm run clean && tsc && npm run bundle:esm && npm run bundle:esm:min && npm run bundle:umd && npm run bundle:umd:min",
-    "bundle:esm": "rollup dist/index.js --file dist/index.mjs --format esm",
-    "bundle:esm:min": "terser --ecma 6 --compress --mangle --module -o dist/index.min.mjs -- dist/index.mjs",
-    "bundle:umd": "rollup dist/index.js --file dist/index.umd.js --format umd --name sayHello",
-    "bundle:umd:min": "terser --ecma 6 --compress --mangle -o dist/index.umd.min.js -- dist/index.umd.js",
-    "test": "jest",
-    "watch": "jest --watchAll"
+    "format": "prettier --write ./src/** ./test/** *.json",
+    "build": "vite build && tsc --emitDeclarationOnly",
+    "test": "vitest",
+    "coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "jest": "^27.5.1",
-    "rimraf": "^3.0.2",
-    "rollup": "^2.67.3",
-    "terser": "^5.10.0",
-    "typescript": "^4.5.5"
+    "@types/node": "18.11.18",
+    "@vitest/coverage-v8": "^0.34.1",
+    "prettier": "^3.0.2",
+    "typescript": "^5.1.6",
+    "vite": "^4.4.9",
+    "vitest": "^0.34.1"
   }
 }
