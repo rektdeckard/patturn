@@ -9,6 +9,7 @@ export type Pattern<In> = (input: In) => boolean;
 export type Guard<In> =
   | In
   | DeepPartial<WithExtras<In>>
+  | TypeAssert<In>
   | Pattern<In>
   | GuardObject<In>
   | Guard<In>[];

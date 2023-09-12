@@ -1,6 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { match, MatchExpression, P } from "../src/refactor";
 
+describe("P", () => {
+  it("can be constructed in advance", () => {
+    const pattern = P.array.of({
+      age: P.number,
+      location: { city: P.string.alphabetic, state: P.string.uppercase },
+    });
+
+    expect(
+      pattern([{ age: 27, location: { city: "Denver", state: "CO" } }])
+    ).toBe(true);
+  });
+});
+
 describe("match", () => {
   describe("patterns", () => {
     it("wildcard", () => {
@@ -45,20 +58,90 @@ describe("match", () => {
       expect(r).toBe("itsamee");
     });
 
-    it("not", () => {
-      const r1 = match(69)
-        .with(P.not.number, () => "blaze it")
-        .with(P.not.string, "WILD")
-        .with([30, 60], "degrees")
-        .execute();
-      expect(r1).toBe("WILD");
+    describe("not", () => {
+      it("base case", () => {
+        const r1 = match(69)
+          .with(P.not.number, () => "blaze it")
+          .with(P.not.string, "WILD")
+          .with([30, 60], "degrees")
+          .execute();
+        expect(r1).toBe("WILD");
 
-      const r2 = match(69)
-        .with(12, "twelve")
-        .with(42, "fortytwo")
-        .with(P.not.nullish, "sixtynine")
-        .otherwise(() => "a jilion");
-      expect(r2).toBe("sixtynine");
+        const r2 = match(69)
+          .with(12, "twelve")
+          .with(42, "fortytwo")
+          .with(P.not.nullish, "sixtynine")
+          .otherwise(() => "a jilion");
+        expect(r2).toBe("sixtynine");
+      });
+
+      it("inverse parametric", () => {
+        expect(match("hello").with(P.not.contains("z"), true).execute()).toBe(
+          true
+        );
+      });
+
+      it("inverse compound", () => {
+        expect(match(7).with(P.not.number.negative, true).execute()).toBe(true);
+      });
+
+      it("inverse compound parametric", () => {
+        expect(
+          match(7)
+            .with(P.not.number.positive, false)
+            .with(P.not.number.between(0, 1), true)
+            .execute()
+        ).toBe(true);
+      });
+
+      it("shape", () => {
+        const test = { ts: new Date() } as any;
+        const res = match(test)
+          .with({ ts: P.not.object }, "notobject")
+          .with({ ts: P.not.instanceOf(Date) }, "notdate")
+          .with({ ts: undefined }, "notundefined")
+          .with({ ts: P.any }, "any")
+          .execute();
+        expect(res).toBe("any");
+      });
+    });
+
+    describe("optional", () => {
+      it("base case", () => {
+        expect(
+          match({ foo: 11 }).with({ foo: P.optional.number }, true).execute()
+        ).toBe(true);
+      });
+
+      it("missing case", () => {
+        expect(
+          match({ foo: 11 })
+            .with({ foo: 11, bar: P.optional.number }, true)
+            .execute()
+        ).toBe(true);
+      });
+
+      it("optional compound", () => {
+        expect(
+          match({ foo: "wahoo" })
+            .with({ foo: P.optional.string.lowercase }, true)
+            .execute()
+        ).toBe(true);
+      });
+
+      it("optional compound parametric", () => {
+        expect(
+          match({ foo: "wahoo" })
+            .with({ foo: P.optional.string.includes("h") }, true)
+            .execute()
+        ).toBe(true);
+      });
+
+      it("fails if defined but incorrect", () => {
+        expect(
+          match({ foo: 11 }).with({ foo: P.optional.string }, true).execute()
+        ).toBeUndefined();
+      });
     });
 
     it("boolean", () => {
@@ -144,7 +227,17 @@ describe("match", () => {
         ).toBe(2);
       });
 
-      it("uppsercase", () => {
+      it("len", () => {
+        expect(
+          match("dragon")
+            .with(P.string.len(5), 0)
+            .with(P.string.len(50), 1)
+            .with(P.string.len(6), 2)
+            .execute()
+        ).toBe(2);
+      });
+
+      it("uppercase", () => {
         expect(
           match("DRAGON")
             .with("crocodile", 0)
@@ -357,13 +450,13 @@ describe("match", () => {
     });
   });
 
-  describe("func", () => {
+  describe("function", () => {
     it("base case", () => {
       expect(
         match(() => "yay")
           .with(P.number, false)
           .with("yay", false)
-          .with(P.func, true)
+          .with(P.function, true)
           .execute()
       ).toBe(true);
     });
@@ -372,8 +465,8 @@ describe("match", () => {
       expect(
         match((_foo: number, _bar: boolean) => "yay")
           .with(P.number, false)
-          .with(P.func.arity(3), false)
-          .with(P.func.arity(2), true)
+          .with(P.function.arity(3), false)
+          .with(P.function.arity(2), true)
           .execute()
       ).toBe(true);
     });
@@ -391,20 +484,20 @@ describe("match", () => {
   });
 
   describe("object", () => {
-    it("can match by type", () => {
+    it("base case", () => {
       const test = { foo: 7, bar: { qux: true, quz: "yeah" } };
       const res = match(test)
         .with(P.boolean, 1)
         .with(P.number, 2)
         .with(P.array, 3)
         .with(P.object, 4)
-        .with(P.func, 5)
+        .with(P.function, 5)
         .execute();
 
       expect(res).toBe(4);
     });
 
-    it("can match a partial", () => {
+    it("partial", () => {
       const test = { foo: 7, bar: { qux: true, quz: "yeah" } };
       const res = match(test)
         .with({ foo: 5 }, 1)
@@ -417,7 +510,7 @@ describe("match", () => {
       expect(res).toBe(4);
     });
 
-    it("can match against complex partials", () => {
+    it("complex partial", () => {
       const test = {
         name: "john",
         occupation: { field: "accounting", salary: 120000 },
@@ -437,7 +530,7 @@ describe("match", () => {
       expect(res).toBe("what a catch");
     });
 
-    it("can match against negative partials", () => {
+    it("negative partials", () => {
       const test = {
         name: "john",
         occupation: { field: "accounting", salary: 120000 },
@@ -449,6 +542,20 @@ describe("match", () => {
         .with({ occupation: { field: P.not.falsy } }, "gotta have job")
         .execute();
       expect(res).toBe("gotta have job");
+    });
+
+    it("shape", () => {
+      const test = {
+        much: true,
+        wow: { doggo: 99, goods: ["pets", "treats"] },
+        cuz: [{ wen: new Date() }],
+      };
+      const shape = P.object.shape({
+        much: ["yes", "no", P.boolean],
+        wow: { doggo: P.optional.number.gte(99), goods: P.contains("treats") },
+        cuz: P.array.of({ wen: P.instanceOf(Date) }),
+      });
+      expect(match(test).with(shape, "heckin").execute()).toBe("heckin");
     });
   });
 
@@ -462,6 +569,99 @@ describe("match", () => {
 
       expect(res).toBe(69);
     });
+
+    it("of", () => {
+      type User = { id: number; name: string };
+      const test: User[] = [
+        { id: 0, name: "super" },
+        { id: 7, name: "tobias" },
+      ];
+
+      expect(
+        match(test)
+          .with(
+            P.array.of({ id: [P.number.gte(0)], name: P.string.lowercase }),
+            true
+          )
+          .execute()
+      ).toBe(true);
+
+      type User2 = User & { interests: string[] };
+      const test2: User2[] = [
+        { id: 42, name: "steve", interests: ["computers", "money"] },
+        { id: 43, name: "steve", interests: ["computers", "open source"] },
+      ];
+
+      expect(
+        match(test2)
+          .with(
+            P.array.of({
+              id: P.number,
+              name: P.string.lowercase,
+              interests: P.contains("computers"),
+            }),
+            true
+          )
+          .execute()
+      ).toBe(true);
+    });
+
+    it("includes", () => {
+      const items = [{ foo: 4 }, { foo: 24 }];
+      expect(
+        match(items)
+          .with(P.array.includes({ foo: 4 }), true)
+          .execute()
+      ).toBe(true);
+    });
+
+    it("len", () => {
+      const items = ["abc", 123, [true], null, { yes: false }];
+      expect(
+        match(items)
+          .with(P.array.of(P.string), false)
+          .with(P.array.len(3), false)
+          .with(P.array.len(5), true)
+          .execute()
+      ).toBe(true);
+    });
+  });
+
+  describe("tuple", () => {
+    it("base case", () => {
+      const cartoonThings = [
+        { zoinks: true, zounds: [31, 99] },
+        { kapow: "YES", varoom: null },
+      ];
+
+      expect(
+        match(cartoonThings)
+          .with(
+            P.tuple([
+              { zoinks: P.boolean, zounds: P.array.of(P.number.positive) },
+              { kapow: P.string.uppercase, varoom: P.nullish },
+            ]),
+            true
+          )
+          .execute()
+      ).toBe(true);
+    });
+
+    it("primitive", () => {
+      expect(
+        match(["a", 24])
+          .with(P.tuple(["a", 24]), true)
+          .execute()
+      ).toBe(true);
+    });
+
+    it("pattern", () => {
+      expect(
+        match(["a", 24])
+          .with(P.tuple([P.not.boolean, P.number.positive]), true)
+          .execute()
+      ).toBe(true);
+    });
   });
 
   describe("instanceOf", () => {
@@ -474,6 +674,23 @@ describe("match", () => {
           .with(P.instanceOf(Date), true)
           .execute()
       ).toBe(true);
+    });
+  });
+});
+
+describe("MatchExpression", () => {
+  describe("prepare", () => {
+    it("can be constructed beforehand and executed multiple times", () => {
+      const expr = MatchExpression.prepare()
+        .with([3, 4], "yes")
+        .with([5, 9, 11], "superyes")
+        .with("fortytwo", "no")
+        .with(P.number, "wow")
+        .with(P.bigint, "huuuuuuge");
+
+      expect(expr.execute(12)).toBe("wow");
+      expect(expr.execute(9)).toBe("superyes");
+      expect(expr.execute(99999999999999n)).toBe("huuuuuuge");
     });
   });
 });
@@ -512,22 +729,5 @@ describe("types", () => {
     expect(formatContent({ type: "img", data: { src: "foo", alt: "" } })).toBe(
       `<img src="foo" alt="" />`
     );
-  });
-});
-
-describe("MatchExpression", () => {
-  describe("prepare", () => {
-    it("can be constructed beforehand and executed multiple times", () => {
-      const expr = MatchExpression.prepare()
-        .with([3, 4], "yes")
-        .with([5, 9, 11], "superyes")
-        .with("fortytwo", "no")
-        .with(P.number, "wow")
-        .with(P.bigint, "huuuuuuge");
-
-      expect(expr.execute(12)).toBe("wow");
-      expect(expr.execute(9)).toBe("superyes");
-      expect(expr.execute(99999999999999n)).toBe("huuuuuuge");
-    });
   });
 });

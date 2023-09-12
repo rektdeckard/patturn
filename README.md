@@ -17,13 +17,8 @@ The missing `match` expression for JavaScript. Use functional pattern matching c
 ## Installation
 
 ```bash
-yarn add patturn
-```
-
-or
-
-```bash
-npm install --save patturn
+npm i patturn
+#^ Or whatever package manager you use
 ```
 
 ## Match Expressions
@@ -33,18 +28,13 @@ The `match` function behaves like a superpowered `switch` statement that returns
 ```ts
 import { match } from "patturn";
 
-const ANSWER = 42;
-
-const result = match(
-  ANSWER,
-  [
-    [0, "zilch"],
-    [3, "the magic number"],
-    [42, "the meaning of life"],
-    [420, "nothing to see here, officer"],
-  ],
-  "no match"
-);
+const answer = 42;
+const result = match(answer)
+  .with(0, "zilch")
+  .with(3, "the magic number")
+  .with(42, "the meaning of life")
+  .with(420, "nothing to see here, officer")
+  .execute();
 // result: "the meaning of life"
 ```
 
@@ -52,16 +42,20 @@ The _return_ types may be heterogeneous, and when using TypeScript can be inferr
 
 ### Guards and Returns
 
-Each matcher consists of a _guard_ and a _return_. Guards check if a value matches a condition, and returns specify the value to return from the match. Each can be a value, expression, array of values, function called with the value, or any combination thereof:
+Each matcher consists of a _guard_ and a _return_. Guards check if a value matches a condition, and returns specify the value to return from the match. Each can be a value, [Pattern](#patterns), array of values, function called with the value, or any combination thereof:
 
 ```ts
 const name = "benedict";
 
-match(name, [
-  ["thomas", "t-bone"],
-  [(n) => n.includes("ben"), `${name} cumberbatch?`],
-  [(n) => n.length > 8, (_n) => "too long, don't care"],
-]); // returns "benedict cumberbatch?"
+match(name)
+  .with("thomas", "t-bone")
+  .with((n) => n.includes("ben"), `${name} cumberbatch?`)
+  .with(
+    (n) => n.length > 8,
+    (_) => "too long, don't care"
+  )
+  .execute();
+// returns "benedict cumberbatch?"
 ```
 
 > Note: _guards_ use strict equality, or the boolean return value if a function.
@@ -73,16 +67,12 @@ To match multiple values in a single match branch, simply pass in an array of va
 ```ts
 const flavor = "strawberry";
 
-const preference = match(
-  flavor,
-  [
-    [["chocolate", "vanilla"], "obviously good"],
-    [["mint chip", "strawberry"], "kinda okay"], // matches second guard case
-    ["pistachio", "lowkey favorite"],
-    ["rocky road", "too much going on"],
-  ],
-  "no opinion"
-);
+const preference = match(flavor)
+  .with(["chocolate", "vanilla"], "obviously good")
+  .with(["mint chip", "strawberry"], "kinda okay") // <-- matches!
+  .with("pistachio", "lowkey favorite")
+  .with("rocky road", "too much going on")
+  .execute();
 // preference: "kinda okay"
 ```
 
@@ -117,6 +107,10 @@ type Return<In, Out> = Out | ((input: In) => Out);
 ```
 
 ---
+
+## Patterns
+
+These YADDA YADA
 
 ## Async Match Expressions
 
@@ -166,17 +160,14 @@ The `when` function behaves much like `match`, but doesn't return a value. It ha
 ```ts
 const album = { artist: "Radiohead", title: "OK Computer", year: 1997 };
 
-when(
-  album,
+when(album, [
   [
-    [
-      (a) => a.year >= 1990 && a.year <= 2000,
-      (_) => console.log("playing 90's music..."),
-    ],
-    [(a) => a.artist === "Sisqo", () => process.exit(1)],
-    [(a) => a.artist === "Radiohead", () => setVolume(100)],
+    (a) => a.year >= 1990 && a.year <= 2000,
+    (_) => console.log("playing 90's music..."),
   ],
-);
+  [(a) => a.artist === "Sisqo", () => process.exit(1)],
+  [(a) => a.artist === "Radiohead", () => setVolume(100)],
+]);
 // (greedy by default)
 // - logs "playing 90's music..."
 // - blasts volume
@@ -240,7 +231,7 @@ async function whenAsync<In>(
 
 type WhenBranchAsync<In> = [
   GuardAsync<In>,
-  ((input: In) => void | Promise<void>) | null | undefined
+  ((input: In) => void | Promise<void>) | null | undefined,
 ];
 type GuardAsync<In> =
   | Guard<In>
