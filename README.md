@@ -17,13 +17,13 @@ The missing `match` expression for JavaScript. Use functional pattern matching c
 ## Installation
 
 ```bash
-npm i patturn
+npm install patturn
 #^ Or whatever package manager you use
 ```
 
 ## Match Expressions
 
-The `match` function behaves like a superpowered `switch` statement that returns a value from the matched branch. It accepts a value to match against, an array of matchers, and an optional default return value.
+The `match` function behaves like a superpowered `switch` statement that returns a value from the matched branch. It accepts a value to match against, and any number of match arms. When executed it returns the value in the matched arm.
 
 ```ts
 import { match } from "patturn";
@@ -34,15 +34,14 @@ const result = match(answer)
   .with(3, "the magic number")
   .with(42, "the meaning of life")
   .with(420, "nothing to see here, officer")
-  .execute();
-// result: "the meaning of life"
+  .execute(); // "the meaning of life"
 ```
 
-The _return_ types may be heterogeneous, and when using TypeScript can be inferred, or constrained as needed.
+The _return_ types may be heterogeneous, and when using TypeScript, they also serve to constrain the test value's type on success. can be inferred, or constrained as needed.
 
 ### Guards and Returns
 
-Each matcher consists of a _guard_ and a _return_. Guards check if a value matches a condition, and returns specify the value to return from the match. Each can be a value, [Pattern](#patterns), array of values, function called with the value, or any combination thereof:
+Each match arm (calls to `with`) consists of a _guard_ and a _return_. Guards check if a value matches a condition, and returns specify the value to return from the match. Guards can be a value, [Pattern](#patterns), array of values, a function returning a boolean, or any combination thereof:
 
 ```ts
 const name = "benedict";
@@ -52,17 +51,30 @@ match(name)
   .with((n) => n.includes("ben"), `${name} cumberbatch?`)
   .with(
     (n) => n.length > 8,
-    (_) => "too long, don't care"
+    (n) => n.length
   )
-  .execute();
-// returns "benedict cumberbatch?"
+  .execute(); // "benedict cumberbatch?"
 ```
 
-> Note: _guards_ use strict equality, or the boolean return value if a function.
+> Note: _guards_ use strict equality checks when the value is primitive, or the boolean return value if a function.
 
-### Guard Lists
+Matching a non-primitive value like an Object, Array, or class instance comes in a few flavors. To loosely match objects with certain properties, a simple guard object will suffice. Loose matching only requires that properties on the guard match properties on the test value, not vice-versa. For strict object matching where all own enumerable properties are matched, use [P.object](#p.object) and associated patterns. To match an array, use [P.array](#p.array) and associated patterns (array literals behave like "any of these" — see [Guard Lists](#guard-lists)):
 
-To match multiple values in a single match branch, simply pass in an array of values as the guard. This is the equivalent of the fallthrough behavior in `switch`, and any matching value will immediately break with the associated return:
+```ts
+import { match, P } from "patturn";
+
+const testval = { foo: true, bar: [1, 2, 3], baz: "hello world" };
+
+match(testval)
+  .with({ foo: false }, "no")
+  .with({ foo: true, bar: P.array.of(P.number) }, "yep") // <-- matches!
+  .with(P.object.strict({ baz: "hello world" }), "nope")
+  .execute(); // "yep"
+```
+
+#### Guard Lists
+
+To match multiple possible values in a single match branch, simply pass in an array of values as the guard. This is the equivalent of the fallthrough behavior in `switch`, and any matching value will immediately break with the associated return:
 
 ```ts
 const flavor = "strawberry";
@@ -72,11 +84,10 @@ const preference = match(flavor)
   .with(["mint chip", "strawberry"], "kinda okay") // <-- matches!
   .with("pistachio", "lowkey favorite")
   .with("rocky road", "too much going on")
-  .execute();
-// preference: "kinda okay"
+  .execute(); // "kinda okay"
 ```
 
-### Order Matters
+#### Order Matters
 
 Ordering of matchers is important -- the first guard to pass is the one used. In the example below, both the third and fourth guards would pass, but the fourth is never run:
 
@@ -84,33 +95,127 @@ Ordering of matchers is important -- the first guard to pass is the one used. In
 type User = { name: string; id: number };
 const me: User = { name: "rekt", id: 32 };
 
-match<User, boolean | null>(me, [
-  [(u) => u.id === 1, true],
-  [(u) => u.name === "he-who-must-not-be-named", null],
-  [(u) => u.id < 1000, true],
-  [(u) => u.name === "rekt", false],
-]); // returns `true`
+match(me)
+  .with((u) => u.id === 1, true)
+  .with((u) => u.name === "he-who-must-not-be-named", null)
+  .with((u) => u.id < 1000, "yes") // <-- matches first!
+  .with((u) => u.name === "rekt", false)
+  .execute(); // "yes"
 ```
 
-### Function Signature
+#### Return expressions
+
+You may provide a literal return value in a match arm, or supply a function to be called with the match value to produce a return value. This is useful to keep matching and transforming logic collocated, while saving work due to the lazy nature of match arms:
 
 ```ts
-function match<In, Out = In>(
-  input: In,
-  matchers: Array<MatchBranch<In, Out>>,
-  defaultValue?: Out
-): Out | undefined;
+const testval = ["age", "quod", "agis"];
 
-type MatchBranch<In, Out> = [Guard<In>, Return<In, Out>];
-type Guard<In> = In | In[] | ((input: In) => boolean);
-type Return<In, Out> = Out | ((input: In) => Out);
+match(testval)
+  .with(P.array.len(2), (arr) => arr[0])
+  .with(300, (n) => n ** 2)
+  .with(P.array.of(P.string), (arr) => arr.map((str) => str.toUpperCase()))
+  .execute(); // ["AGE", "QUOD", "AGIS"]
 ```
 
 ---
 
 ## Patterns
 
-These YADDA YADA
+Patterns are simple data validation functions that return `true` if the given input matches, otherwise `false`. Some Patterns have additional, chainable predicates that help refine and constrain validation. In TypeScript, they also serve to constrain the test value's type on success. Patterns live on the `P` object
+
+### `P._`
+
+The wildcard pattern, this function matches any input and always returns `true` no matter the input. It is also available under the alias `P.any`.
+
+### `P.nullish`
+
+Matches `null` or `undefined` inputs.
+
+### `P.boolean`
+
+Matches `boolean` primitives and `Boolean` objects.
+
+#### Examples
+
+```ts
+P.boolean(true); // true
+P.boolean(false); // true
+P.boolean(new Boolean()); // true
+P.boolean("true"); // false
+```
+
+### `P.falsy`
+
+Matches any falsy value, namely `false`, `undefined`, `null`, `0`, `-0`, `NaN`, and `""` (the empty string).
+
+### `P.truthy`
+
+Matches any truthy value, namely all values other than `false`, `undefined`, `null`, `0`, `-0`, `NaN`, and `""` (the empty string).
+
+### `P.string`
+
+Matches `string` primitives and `String` objects.
+
+#### Modifiers
+
+- `P.string.includes(substr: string)`: string includes a given `substr`
+- `P.string.startsWith(prefix: string)`: string starts with a given `prefix`
+- `P.string.endsWith(suffix: string)`: string starts with a given `suffix`
+- `P.string.uppercase`: string contains only uppercase alphabetic characters
+- `P.string.lowercase`: string contains only lowercase alphabetic characters
+- `P.string.alphabetic`: string contains only alphabetic characters
+- `P.string.alphanumeric`: string contains only alphanumeric characters
+- `P.string.numeric`: string contains only numeric characters
+- `P.string.url`: string is a `string` representation of a valid `URL` (including protocol)
+  - `P.string.url.loose`: string is a `string` URL representation which may or may not have a `protocol`
+- `P.string.enum(values: string[])`: string is one of a finite set of `values`
+- `P.string.len(len: number | [min: number | null, max?: number | null])`: string is a `string` of length `len`, or between `min` and `max` characters in length (inclusive) if `len` is a tuple.
+
+#### Examples
+
+```ts
+P.string("mario"); // true
+P.string(new String("mario")); // true
+P.string.includes("a")("mario"); // true
+P.string.startsWith("a")("mario"); // false
+P.string.endsWith("o")("mario"); // true
+P.string.uppercase("mario"); // false
+P.string.lowercase("mario"); // true
+P.string.alphabetic("mario"); // true
+P.string.alphanumeric("mario"); // true
+P.string.numeric("mario"); // false
+P.string.url("mario.com"); // false
+P.string.url.loose("mario.com"); // true
+P.string.enum(["mario", "luigi", "toad"])("mario"); // true
+P.string.len(10)("mario"); // false
+P.string.len([3, 10])("mario"); // true
+```
+
+### `P.regex`
+
+### `P.number`
+
+### `P.bigint`
+
+### `P.symbol`
+
+### `P.object`
+
+### `P.array`
+
+### `P.tuple`
+
+### `P.function`
+
+### `P.contains`
+
+### `P.union`
+
+### `P.intersection`
+
+### `P.instanceOf`
+
+### Modifiers
 
 ## Async Match Expressions
 
@@ -119,58 +224,41 @@ For cases when asynchronous checks or return mappings are needed, use the `match
 ```ts
 import { matchAsync } from "patturn";
 
-const formState = await matchAsync(
-  { username: "something_rude", email: "person@domain.com" },
-  [
-    [{ username: "", email: "" }, SignupState.Empty],              // ✔ value
-    [isEmailInvalid, SignupState.EmailInvalid],                    // ✔ sync fn
-    [isEmailTaken, SignupState.EmailTaken],                        // ✔ async fn (api call)
-    [isUsernameInvalid, SignupState.UsernameInvalid],              // ✔ async fn
-    [isUsernameObscene, SignupState.UsernameDisallowed],           // ✔ async fn
-    [new Promise((resolve) => resolve(false)), SignupState.Never], // ✔ promise
-    [async () => false), SignupState.Never],                       // ✔ anonymous async fn
-  ],
-  SignupState.Ok
-);
-```
-
-### Function Signature
-
-```ts
-async function matchAsync<In, Out = In>(
-  input: In,
-  matchers: Array<MatchBranchAsync<In, Out>>,
-  defaultValue?: Out
-): Promise<Out | undefined>;
-
-type MatchBranchAsync<In, Out> = [GuardAsync<In>, ReturnAsync<In, Out>];
-type GuardAsync<In> =
-  | Guard<In>
-  | Promise<boolean>
-  | ((input: In) => Promise<boolean>);
-type ReturnAsync<In, Out> = Return<In, Out> | ((input: In) => Promise<Out>);
+const signupState = await matchAsync({
+  username: "something_rude",
+  email: "person@domain.com",
+})
+  .with({ username: "", email: "" }, SignupState.Empty) // ✔ value
+  .with(isEmailInvalid, SignupState.EmailInvalid) // ✔ sync fn
+  .with(isUsernameInvalid, SignupState.UsernameInvalid) // ✔ async fn
+  .with(Promise.resolve(false), SignupState.Never) // ✔ promise
+  .otherwise(SignupState.Ok);
 ```
 
 ---
 
 ## When statements
 
-The `when` function behaves much like `match`, but doesn't return a value. It has the added option of running lazily, stopping after the first match, or greedily and running through every match. It's also a lot like a `switch`, useful for running side-effects based on complex conditions.
+The `when` function behaves much like `match`, but doesn't return a value. It has the added option of running lazily, stopping after the first match, or greedily (exhaustively) and running through every match. It's also a lot like a `switch`, useful for running side-effects based on complex conditions.
 
 ```ts
 const album = { artist: "Radiohead", title: "OK Computer", year: 1997 };
 
-when(album, [
-  [
-    (a) => a.year >= 1990 && a.year <= 2000,
-    (_) => console.log("playing 90's music..."),
-  ],
-  [(a) => a.artist === "Sisqo", () => process.exit(1)],
-  [(a) => a.artist === "Radiohead", () => setVolume(100)],
-]);
-// (greedy by default)
+when(album)
+  .is({ year: P.number.between(1990, 2000) }, (_) =>
+    console.log("playing 90's music...")
+  )
+  .is(
+    (a) => a.artist === "Sisqo",
+    () => process.exit(1)
+  )
+  .is(
+    (a) => a.artist === "Radiohead",
+    () => setVolume(100)
+  )
+  .lazy();
+
 // - logs "playing 90's music..."
-// - blasts volume
 ```
 
 ### Early Returns
@@ -178,30 +266,16 @@ when(album, [
 Sometimes you want to break out of pattern matching early, without running any side-effects or responding in any particular way. In this case, just omit the handler from the matcher and use lazy matching. This is analagous to a `switch` arm with only a `break` statement:
 
 ```ts
-when(
-  23,
-  [
-    [42, submitAnswer],
-    [(n) => n % 9 === 0), (n) => bottleBeers(n + 1)],
-    [isPrime], // early return with no operation to perform
-    [600],     // early return with no operation to perform
-    [-1, doSomething],
-  ],
-  true,        // must be lazy
-);
-```
-
-### Function Signature
-
-```ts
-function when<In>(
-  input: In,
-  matchers: Array<WhenBranch<In>>,
-  lazy?: boolean
-): void;
-
-type WhenBranch<In> = [Guard<In>, ((input: In) => void) | null | undefined];
-type Guard<In> = In | In[] | ((input: In) => boolean);
+when(23)
+  .is(42, submitAnswer)
+  .is(
+    (n) => n % 9 === 0,
+    (n) => bottleBeers(n + 1)
+  )
+  .is(isPrime) // early return with no operation to perform
+  .is(600) // early return with no operation to perform
+  .is(-1, doSomething)
+  .otherwise(fallback); // must be exhaustive
 ```
 
 ---
@@ -213,30 +287,14 @@ As expected, the async form `whenAsync` can match and run arbitrary patterns, Pr
 ```ts
 import { whenAsync } from "patturn";
 
-await whenAsync(33, [
-  [101, () => console.log("needs help")],
-  [isPrimeAsync, handlePrimeCase],
-  [async (n) => longComputationReturningBool, (n) => handlePass(n, "xyz")],
-]);
-```
-
-### Function Signature
-
-```ts
-async function whenAsync<In>(
-  input: In,
-  matchers: Array<WhenBranchAsync<In>>,
-  lazy: boolean = false
-): Promise<void>;
-
-type WhenBranchAsync<In> = [
-  GuardAsync<In>,
-  ((input: In) => void | Promise<void>) | null | undefined,
-];
-type GuardAsync<In> =
-  | Guard<In>
-  | Promise<boolean>
-  | ((input: In) => Promise<boolean>);
+await whenAsync(33)
+  .is(101, () => console.log("needs help"))
+  .is(isPrimeAsync, handlePrimeCase)
+  .is(
+    async (n) => longComputationReturningBool,
+    (n) => handlePass(n, "xyz")
+  )
+  .lazy();
 ```
 
 ## License

@@ -1,20 +1,23 @@
-import { describe, it, expect } from "vitest";
-import { match, MatchExpression, P } from "../src/refactor";
-
-describe("P", () => {
-  it("can be constructed in advance", () => {
-    const pattern = P.array.of({
-      age: P.number,
-      location: { city: P.string.alphabetic, state: P.string.uppercase },
-    });
-
-    expect(
-      pattern([{ age: 27, location: { city: "Denver", state: "CO" } }])
-    ).toBe(true);
-  });
-});
+import { describe, expect, it, vi } from "vitest";
+import { match, matchAsync, MatchExpression, P } from "../src";
+import { isEvenAsync, isOddAsync, isFalseAsync } from "./fixtures";
 
 describe("match", () => {
+  describe("prepare", () => {
+    it("can be constructed beforehand and executed multiple times", () => {
+      const expr = MatchExpression.prepare()
+        .with([3, 4], "yes")
+        .with([5, 9, 11], "superyes")
+        .with("fortytwo", "no")
+        .with(P.number, "wow")
+        .with(P.bigint, "huuuuuuge");
+
+      expect(expr.execute(12)).toBe("wow");
+      expect(expr.execute(9)).toBe("superyes");
+      expect(expr.execute(99999999999999n)).toBe("huuuuuuge");
+    });
+  });
+
   describe("patterns", () => {
     it("wildcard", () => {
       const result = match(69)
@@ -51,7 +54,7 @@ describe("match", () => {
 
     it("self", () => {
       const r = match("itsamee")
-        .with(P.contains("t"), P.self<string>)
+        .with(P.contains("t"), P.identity<string>)
         .with(P.number, "mario")
         .with("wahoo", "luigi")
         .execute();
@@ -235,6 +238,14 @@ describe("match", () => {
             .with(P.string.len(6), 2)
             .execute()
         ).toBe(2);
+
+        expect(
+          match("kobold")
+            .with(P.string.len([12]), 0)
+            .with(P.string.len([null, 5]), 1)
+            .with(P.string.len([6, 10]), 2)
+            .execute()
+        ).toBe(2);
       });
 
       it("uppercase", () => {
@@ -278,13 +289,25 @@ describe("match", () => {
       });
     });
 
+    it("url", () => {
+      expect(
+        match("phosphoricons.com").with(P.string.url, true).execute()
+      ).toBeUndefined();
+      expect(
+        match("https://phosphoricons.com").with(P.string.url, true).execute()
+      ).toBe(true);
+      expect(
+        match("phosphoricons.com").with(P.string.url.loose, true).execute()
+      ).toBe(true);
+    });
+
     it("regex", () => {
       expect(
         match("yogi")
-          .with(P.regex(/^a/), "a___")
-          .with(P.regex(/z$/), "___z")
-          .with(P.regex(/.o.i/), "_o_i")
-          .with(P.regex(/.o/), "_o__")
+          .with(P.string.regex(/^a/), "a___")
+          .with(P.string.regex(/z$/), "___z")
+          .with(P.string.regex(/.o.i/), "_o_i")
+          .with(P.string.regex(/.o/), "_o__")
           .execute()
       ).toBe("_o_i");
     });
@@ -520,7 +543,7 @@ describe("match", () => {
       const res = match(test)
         .with(
           {
-            name: P.regex(/^j/),
+            name: P.string.regex(/^j/),
             married: false,
             occupation: { field: P.truthy, salary: P.number.gt(100000) },
           },
@@ -538,7 +561,7 @@ describe("match", () => {
       };
 
       const res = match(test)
-        .with({ name: P.not.regex(/^j/) }, "i hate j names")
+        .with({ name: P.not.string.regex(/^j/) }, "i hate j names")
         .with({ occupation: { field: P.not.falsy } }, "gotta have job")
         .execute();
       expect(res).toBe("gotta have job");
@@ -550,7 +573,7 @@ describe("match", () => {
         wow: { doggo: 99, goods: ["pets", "treats"] },
         cuz: [{ wen: new Date() }],
       };
-      const shape = P.object.shape({
+      const shape = P.object.strict({
         much: ["yes", "no", P.boolean],
         wow: { doggo: P.optional.number.gte(99), goods: P.contains("treats") },
         cuz: P.array.of({ wen: P.instanceOf(Date) }),
@@ -559,15 +582,75 @@ describe("match", () => {
     });
   });
 
+  describe("date", () => {
+    it("base case", () => {
+      const d = new Date("2023-01-14");
+      expect(match(d).with(P.date, "yes").execute()).toBe("yes");
+      expect(match("2023-01-14").with(P.date, "no").execute()).toBeUndefined();
+    });
+
+    it("before", () => {
+      const d = new Date("2020-01-01");
+      expect(match(d).with(P.date.before("2023-01-14"), "yes").execute()).toBe(
+        "yes"
+      );
+      expect(
+        match(d).with(P.date.before("2019-01-01"), "yes").execute()
+      ).toBeUndefined();
+    });
+
+    it("atOrBefore", () => {
+      const d = new Date("2020-01-01");
+      expect(
+        match(d).with(P.date.atOrBefore("2020-01-01"), "yes").execute()
+      ).toBe("yes");
+      expect(
+        match(d).with(P.date.atOrBefore("2019-01-01"), "yes").execute()
+      ).toBeUndefined();
+    });
+
+    it("after", () => {
+      const d = new Date("2023-01-14");
+      expect(match(d).with(P.date.after("2020-01-01"), "yes").execute()).toBe(
+        "yes"
+      );
+      expect(
+        match(d).with(P.date.after("2024-01-01"), "yes").execute()
+      ).toBeUndefined();
+    });
+
+    it("atOrAfter", () => {
+      const d = new Date("2023-01-14");
+      expect(
+        match(d).with(P.date.atOrAfter("2023-01-01"), "yes").execute()
+      ).toBe("yes");
+      expect(
+        match(d).with(P.date.atOrAfter("2024-01-01"), "yes").execute()
+      ).toBeUndefined();
+    });
+  });
+
   describe("array", () => {
     it("base case", () => {
       const test = [1, 2, 3];
       const res = match(test)
-        .with({}, (s) => s[1])
+        .with({ "0": 0 }, (s) => s[1])
         .with(P.array, 69)
         .execute();
 
       expect(res).toBe(69);
+    });
+
+    it("array as object", () => {
+      const arr = ["hello", "world"];
+      expect(
+        match(arr as unknown)
+          .with(
+            { "0": "hello", "1": "world", length: P.number.positive },
+            "yes"
+          )
+          .execute()
+      ).toBe("yes");
     });
 
     it("of", () => {
@@ -598,7 +681,9 @@ describe("match", () => {
             P.array.of({
               id: P.number,
               name: P.string.lowercase,
-              interests: P.contains("computers"),
+              interests: P.array.of(
+                P.string.enum(["computers", "open source", "money"])
+              ),
             }),
             true
           )
@@ -624,6 +709,14 @@ describe("match", () => {
           .with(P.array.len(5), true)
           .execute()
       ).toBe(true);
+
+      expect(
+        match(items)
+          .with(P.array.len([10]), false)
+          .with(P.array.len([0, 3]), false)
+          .with(P.array.len([3, 7]), false)
+          .execute()
+      );
     });
   });
 
@@ -664,6 +757,48 @@ describe("match", () => {
     });
   });
 
+  describe("union", () => {
+    it("base case", () => {
+      expect(match(7).with(P.union(P.string, P.number), "yay").execute()).toBe(
+        "yay"
+      );
+    });
+
+    it("many cases", () => {
+      const everythingButSeven = P.union(
+        P.array,
+        P.object,
+        P.number.gt(7),
+        P.number.lt(7),
+        P.bigint,
+        P.boolean,
+        P.nullish,
+        P.symbol
+      );
+
+      expect(match(7).with(everythingButSeven, true).execute()).toBeUndefined();
+      expect(match(8).with(everythingButSeven, true).execute()).toBe(true);
+      expect(
+        match(7)
+          .with(P.union(P.number.gte(7), P.string), P.identity)
+          .execute()
+      ).toBe(7);
+    });
+  });
+
+  describe("intersection", () => {
+    it("base case", () => {
+      const foobar = P.intersection({ foo: P.number }, { bar: P.nullish });
+
+      expect(
+        match({ foo: 42, bar: null }).with(foobar, "yaaas").execute()
+      ).toBe("yaaas");
+      expect(
+        match({ foo: 7, bar: null, qux: false }).with(foobar, "yaaas").execute()
+      ).toBe("yaaas");
+    });
+  });
+
   describe("instanceOf", () => {
     it("base case", () => {
       const d1 = new Date();
@@ -678,19 +813,76 @@ describe("match", () => {
   });
 });
 
-describe("MatchExpression", () => {
-  describe("prepare", () => {
-    it("can be constructed beforehand and executed multiple times", () => {
-      const expr = MatchExpression.prepare()
-        .with([3, 4], "yes")
-        .with([5, 9, 11], "superyes")
-        .with("fortytwo", "no")
-        .with(P.number, "wow")
-        .with(P.bigint, "huuuuuuge");
+describe("matchAsync", () => {
+  describe("simple async guard", () => {
+    it("base case", async ({ expect }) => {
+      const notExecuted = vi.fn();
 
-      expect(expr.execute(12)).toBe("wow");
-      expect(expr.execute(9)).toBe("superyes");
-      expect(expr.execute(99999999999999n)).toBe("huuuuuuge");
+      expect(
+        await matchAsync(23)
+          .with(Promise.resolve(false), "nope")
+          .with(() => Promise.resolve(false), "false")
+          .with(isEvenAsync, "even")
+          .with(isOddAsync, "odd")
+          .with(notExecuted, "never")
+          .execute()
+      ).toBe("odd");
+      expect(notExecuted).not.toHaveBeenCalled();
+    });
+
+    it("compund expressions", async ({ expect }) => {
+      const data = {
+        foo: 42,
+        bar: false,
+        baz: {
+          qux: ["red", "blue"] as any,
+          quz: null,
+        },
+      };
+
+      const res = await matchAsync(data)
+        .with({ foo: P.boolean }, "no")
+        .with({ foo: P.number, bar: P.boolean, baz: { qux: P.string } }, "naw")
+        .with({ mux: P.number }, "narp")
+        .with(
+          {
+            foo: isEvenAsync,
+            bar: isFalseAsync,
+            baz: {
+              qux: async (v: any) =>
+                Promise.resolve(
+                  P.array.of(P.string.enum(["red", "green", "blue"]))(v)
+                ),
+              quz: async (v: any) => Promise.resolve(P.nullish(v)),
+            },
+          },
+          "yawp"
+        )
+        .execute();
+      expect(res).toBe("yawp");
+    });
+  });
+
+  describe("concurrent", () => {
+    it("base case", async ({ expect }) => {
+      async function isEvenAsync(n: number): Promise<boolean> {
+        return Promise.resolve(n % 2 === 0);
+      }
+      async function isOddAsync(n: number): Promise<boolean> {
+        return Promise.resolve(n % 2 !== 0);
+      }
+      const willBeExecuted = vi.fn();
+
+      expect(
+        await matchAsync(23)
+          .with(Promise.resolve(false), "nope")
+          .with(() => Promise.resolve(false), "false")
+          .with(isEvenAsync, "even")
+          .with(isOddAsync, "odd")
+          .with(willBeExecuted, "never")
+          .concurrent()
+      ).toBe("odd");
+      expect(willBeExecuted).toHaveBeenCalled();
     });
   });
 });

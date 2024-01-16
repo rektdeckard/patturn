@@ -1,6 +1,6 @@
 export type TypeAssert<T> = (input: any) => input is T;
 
-export type ParametricAssert<T, P extends any[] = [T]> = (
+export type ParametricAssert<T, P extends any[] = [value: T]> = (
   ...value: P
 ) => TypeAssert<T>;
 
@@ -8,20 +8,30 @@ export type Pattern<In> = (input: In) => boolean;
 
 export type Guard<In> =
   | In
+  | Guard<In>[]
+  | GuardObject<In>
   | DeepPartial<WithExtras<In>>
   | TypeAssert<In>
-  | Pattern<In>
-  | GuardObject<In>
-  | Guard<In>[];
+  | Pattern<In>;
 
 export type GuardAsync<In> =
   | Guard<In>
+  | GuardAsync<In>[]
+  | GuardObjectAsync<In>
   | Promise<boolean>
   | ((input: In) => Promise<boolean>);
 
 export type GuardObject<T> = T extends object
   ? {
       [P in keyof T]?: T[P] extends object ? GuardObject<T[P]> : Guard<T[P]>;
+    }
+  : T;
+
+export type GuardObjectAsync<T> = T extends object
+  ? {
+      [P in keyof T]?: T[P] extends object
+        ? GuardObjectAsync<T[P]>
+        : GuardAsync<T[P]>;
     }
   : T;
 
@@ -54,3 +64,9 @@ export type DeepPartial<T> = T extends object
 export type WithExtras<T> = T extends object
   ? { [P in keyof T]: WithExtras<T[P]> } & { [prop: string]: unknown }
   : T;
+
+export type UnionToIntersection<U> = (
+  U extends any ? (x: U) => void : never
+) extends (x: infer I) => void
+  ? I
+  : never;
